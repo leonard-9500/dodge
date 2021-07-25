@@ -104,10 +104,8 @@ class Player
 
             if (leftPressed)
             {
-                console.log("leftPressedBefore: " + leftPressedBefore + "\n");
-
                 // This has the effect that the user must first release one of the move buttons before making another move. He cannot continuously move the player
-                // by holding a move button. This makes the movement easier by eliminating accidental double steps due to holding the move button down too long.
+                // by holding down a move button. This makes the movement easier by eliminating accidental double steps due to holding the move button down too long.
                 // This is the setting for all 4 move directions.
                 if (leftPressedBefore == false)
                 {
@@ -209,34 +207,8 @@ class Player
 
     draw()
     {
-        // Project points onto viewing plane
-        //*
-        for (let i = 0; i < this.points.length / 3; i++)
-        {
-            // x
-            this.pointsVP[i * 3    ] = (this.points[i * 3    ] + this.pos[0] - camera.pos[0]) / (this.points[i * 3 + 2] + this.pos[2] - camera.pos[2]);
-            // y
-            this.pointsVP[i * 3 + 1] = (this.points[i * 3 + 1] + this.pos[1] - camera.pos[1]) / (this.points[i * 3 + 2] + this.pos[2] - camera.pos[2]);
-            // z
-            this.pointsVP[i * 3 + 2] = 1;
-        }
-        //*/
-        //this.pointsVP = this.vertexShader(this.points, this.pos, camera.pos);
-        //console.log(this.pointsVP);
-
-        // Draw all 6 quads
-        ctx.strokeStyle = this.color;
-        for (let i = 0; i < this.quads.length/4; i++)
-        {
-            ctx.beginPath();
-            // SCREEN_HEIGHT -  flips the y-axis of the canvas.
-            ctx.moveTo(originCX + this.pointsVP[this.quads[i * 4    ]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4    ]  * 3 + 1 ] * zoom);
-            ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 1]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 1]  * 3 + 1 ] * zoom);
-            ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 2]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 2]  * 3 + 1 ] * zoom);
-            ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 3]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 3]  * 3 + 1 ] * zoom);
-            ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4    ]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4    ]  * 3 + 1 ] * zoom);
-            ctx.stroke();
-        }
+        this.pointsVP = vertexShader(this.points, this.pos, camera.pos);
+        fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color);
 
         // Show debug information
         if (debugMode)
@@ -250,39 +222,6 @@ class Player
             ctx.fillText("Camera World Coordinate Y: " + camera.pos[1], 0, 90);
             ctx.fillText("Camera World Coordinate Z: " + camera.pos[2], 0, 105);
         }
-    }
-
-    vertexShader(p, objPos, camPos)
-    {
-        // The object's points coordinates relative to the camera and the object's position. So it goes through world space and ends in camera space.
-        let pC = [];
-
-        // Move points so they are relative to the camera
-        for (let i = 0; i < p.length / 3; i++)
-        {
-            // x
-            pC[i * 3    ] = p[i * 3    ] + objPos[0] - camPos[0];
-            // y
-            pC[i * 3 + 1] = p[i * 3 + 1] + objPos[1] - camPos[1];
-            // z
-            pC[i * 3 + 2] = p[i * 3 + 2] + objPos[2] - camPos[2];
-        }
-
-        // The object's points coordinates in screen space.
-        let pS = [];
-
-        // Project points onto viewing plane
-        for (let i = 0; i < p.length / 3; i++)
-        {
-            // x
-            pS[i * 3    ] = pC[i * 3    ] / pC[i * 3 + 2];
-            // y
-            pS[i * 3 + 1] = pC[i * 3 + 1] / pC[i * 3 + 2];
-            // z
-            pS[i * 3 + 2] = 1;
-        }
-
-        return pS;
     }
 }
 
@@ -354,22 +293,21 @@ class Enemy
                     this.enemies[this.count * 3    ] = this.getRandomIntInclusive(0, playFieldSize[0] - 1);
                     this.enemies[this.count * 3 + 1] = this.getRandomIntInclusive(0, playFieldSize[1] - 1);
                 }
-                // Set the enemy's x and y coordinates to a different value than the previous enemy's.
+                // Set the enemy's x or y coordinate to a different value than the previous enemy's.
                 else if (this.consecutiveCoordinates == false)
                 {
                     this.enemies[this.count * 3] = this.spawnLastX;
                     this.enemies[this.count * 3 + 1] = this.spawnLastY;
 
-                    // Set the currently spawned enemy's x-coordinate randomly until they are not the same as the last enemies x-coordinate.
-                    while (this.enemies[this.count * 3] == this.spawnLastX)
+                    // Set the currently spawned enemy's x- and y-coordinates randomly until they are not the same as the last enemy's x- or y-coordinate.
+                    while (this.enemies[this.count * 3] == this.spawnLastX || this.enemies[this.count * 3 + 1] == this.spawnLastY)
                     {
                         this.enemies[this.count * 3] = this.getRandomIntInclusive(0, playFieldSize[0] - 1);
-                    }
-                    // Do the same with the currently spawned enemy's y-coordinate.
-                    while (this.enemies[this.count * 3 + 1] == this.spawnLastY)
-                    {
                         this.enemies[this.count * 3 + 1] = this.getRandomIntInclusive(0, playFieldSize[1] - 1);
                     }
+
+                    this.spawnLastX = this.enemies[this.count * 3    ];
+                    this.spawnLastY = this.enemies[this.count * 3 + 1];
                 }
                 // Let the enemy spawn 10 units away from the origin.
                 this.enemies[this.count * 3 + 2] = 10;
@@ -402,32 +340,11 @@ class Enemy
             // Render each enemy from back to front relative to the origin.
             for (let n = this.count; n > 0; n--)
             {
-                // Project points onto viewing plane
-                for (let i = 0; i < this.points.length / 3; i++)
-                {
-                    // x
-                    this.pointsVP[i * 3] = (this.points[i * 3] + this.enemies[n * 3] - camera.pos[0]) / (this.points[i * 3 + 2] + this.enemies[n * 3 + 2] - camera.pos[2]);
-                    // y
-                    this.pointsVP[i * 3 + 1] = (this.points[i * 3 + 1] + this.enemies[n * 3 + 1] - camera.pos[1]) / (this.points[i * 3 + 2] + this.enemies[n * 3 + 2] - camera.pos[2]);
-                    // z
-                    this.pointsVP[i * 3 + 2] = 1;
-                }
-                //console.log(this.pointsVP);
+                // Let pos contain the current enemy's coordinates.
+                let pos = [this.enemies[n * 3 - 3], this.enemies[n * 3 - 2], this.enemies[n * 3 - 1]];
 
-                // Draw all 6 quads
-                ctx.strokeStyle = this.color;
-                for (let i = 0; i < this.quads.length / 4; i++)
-                {
-                    ctx.beginPath();
-                    // SCREEN_HEIGHT -  flips the y-axis of the canvas.
-                    ctx.moveTo(originCX + this.pointsVP[this.quads[i * 4    ] * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4    ] * 3 + 1] * zoom);
-                    ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 1] * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 1] * 3 + 1] * zoom);
-                    ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 2] * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 2] * 3 + 1] * zoom);
-                    ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 3] * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 3] * 3 + 1] * zoom);
-                    ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4    ] * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4    ] * 3 + 1] * zoom);
-                    ctx.stroke();
-                    //console.log("Drew quad.\n");
-                }
+                this.pointsVP = vertexShader(this.points, pos, camera.pos);
+                fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color);
             }
         }
     }
@@ -446,6 +363,61 @@ class Camera
     constructor()
     {
         this.pos = [0, 0, -1];
+    }
+}
+
+/* Function definitions */
+// p = array of points in 3 dimensions like [x, y, z]
+function vertexShader(p, objPos, camPos)
+{
+    // The object's points coordinates relative to the camera and the object's position. So it goes through world space and ends in camera space.
+    let pC = [];
+
+    // Move points so they are relative to the camera
+    for (let i = 0; i < p.length / 3; i++)
+    {
+        // x
+        pC[i * 3] = p[i * 3] + objPos[0] - camPos[0];
+        // y
+        pC[i * 3 + 1] = p[i * 3 + 1] + objPos[1] - camPos[1];
+        // z
+        pC[i * 3 + 2] = p[i * 3 + 2] + objPos[2] - camPos[2];
+    }
+
+    // The object's points coordinates in screen space.
+    let pS = [];
+
+    // Project points onto viewing plane
+    for (let i = 0; i < p.length / 3; i++)
+    {
+        // x
+        pS[i * 3] = pC[i * 3] / pC[i * 3 + 2];
+        // y
+        pS[i * 3 + 1] = pC[i * 3 + 1] / pC[i * 3 + 2];
+        // z
+        pS[i * 3 + 2] = 1;
+    }
+
+    return pS;
+}
+
+function fragmentShader(p, q, z, offsetX, offsetY, color)
+{
+    ctx.strokeStyle = color;
+    for (let i = 0; i < q.length / 4; i++)
+    {
+        // The vertices of the current quad to be drawn.
+        let a = q[i * 4],
+            b = q[i * 4 + 1],
+            c = q[i * 4 + 2],
+            d = q[i * 4 + 3];
+        ctx.beginPath();
+        ctx.moveTo(offsetX + p[a * 3] * z, -offsetY + SCREEN_HEIGHT - p[a * 3 + 1] * z);
+        ctx.lineTo(offsetX + p[b * 3] * z, -offsetY + SCREEN_HEIGHT - p[b * 3 + 1] * z);
+        ctx.lineTo(offsetX + p[c * 3] * z, -offsetY + SCREEN_HEIGHT - p[c * 3 + 1] * z);
+        ctx.lineTo(offsetX + p[d * 3] * z, -offsetY + SCREEN_HEIGHT - p[d * 3 + 1] * z);
+        ctx.lineTo(offsetX + p[a * 3] * z, -offsetY + SCREEN_HEIGHT - p[a * 3 + 1] * z);
+        ctx.stroke();
     }
 }
 
