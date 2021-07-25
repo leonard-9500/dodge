@@ -31,6 +31,11 @@ let leftPressed = false,
     rightPressed = false,
     upPressed = false,
     downPressed = false;
+// If the user has just moved the player this becomes true and the user may only gain the ability to move the player again by first releasing the move button.
+let leftPressedBefore  = false,
+    rightPressedBefore = false,
+    upPressedBefore    = false,
+    downPressedBefore  = false;
 
 function keyDownHandler(e)
 {
@@ -66,18 +71,6 @@ class Player
                         1,  1,  1,
                         1, -1,  1,
                        -1, -1,  1];
-        // front-bottom-left (origin), front-top-left, front-top-right, front-bottom-right, back-bottom-left, back-top-left, back-top-right, back-bottom-right
-        // This has the origin in the front bottom left corner just like the collision detection uses.
-        /*
-        this.points = [0, 0, 0,
-                       0, 1, 0,
-                       1, 1, 0,
-                       1, 0, 0,
-                       0, 0, 1,
-                       0, 1, 1,
-                       1, 1, 1,
-                       1, 0, 1];
-        */
         // Front, left, back, right, top, bottom face.
         this.quads = [0, 1, 2, 3,
                       0, 3, 7, 4,
@@ -87,7 +80,7 @@ class Player
                       7, 6, 2, 3];
         // The points projected onto the viewing plane.
         this.pointsVP = [];
-        // How long is the break between player movement, in ms. So the user has to wait 500ms after moving, before he can move again.
+        // How long is the break between player movement, in ms. So the user has to wait 100ms after moving, before he can move again.
         this.moveInterval = 100;
         this.moveTick = Date.now();
         this.color = "#000000";
@@ -95,52 +88,91 @@ class Player
 
     handleInput()
     {
-        if (leftPressed)
+        // Only move the player if the wait time has been passed.
+        if (tp1 - this.moveTick >= this.moveInterval)
         {
-            // Only move the player if the wait time has been passed.
-            if (tp1 - this.moveTick >= this.moveInterval)
+            console.log("Wait time has been passed\n");
+            console.log(tp1 - this.moveTick + "\n");
+
+            if (leftPressed)
             {
-                console.log("Wait time has been passed\n");
-                console.log(tp1 - this.moveTick + "\n");
-                this.moveTick = Date.now();
-                // Move only if player won't be out of bounds then.
-                if (this.pos[0] > 0) { this.pos[0] -= 1; }
-            }
-        }
+                console.log("leftPressedBefore: " + leftPressedBefore + "\n");
 
-        if (rightPressed)
-        {
-            // Only move the player if the wait time has been passed.
-            if (tp1 - this.moveTick >= this.moveInterval) {
-                console.log("Wait time has been passed\n");
-                console.log(tp1 - this.moveTick + "\n");
-                this.moveTick = Date.now();
-                // Move only if player won't be out of bounds then.
-                if (this.pos[0] < playFieldSize[0]-1) { this.pos[0] += 1; }
-            }
-        }
+                // This has the effect that the user must first release one of the move buttons before making another move. He cannot continuously move the player
+                // by holding a move button. This makes the movement easier by eliminating accidental double steps due to holding the move button down too long.
+                // This is the setting for all 4 move directions.
+                if (leftPressedBefore == false)
+                {
+                    // Move only if player won't be out of bounds then.
+                    if (this.pos[0] > 0)
+                    {
+                        this.pos[0] -= 1;
+                        leftPressedBefore = true;
 
-        if (upPressed)
-        {
-            // Only move the player if the wait time has been passed.
-            if (tp1 - this.moveTick >= this.moveInterval) {
-                console.log("Wait time has been passed\n");
-                console.log(tp1 - this.moveTick + "\n");
-                this.moveTick = Date.now();
-                // Move only if player won't be out of bounds then.
-                if (this.pos[1] < playFieldSize[1] - 1) { this.pos[1] += 1; }
+                        this.moveTick = Date.now();
+                    }
+                }
             }
-        }
+            if (leftPressed == false)
+            {
+                leftPressedBefore = false;
+            }
 
-        if (downPressed)
-        {
-            // Only move the player if the wait time has been passed.
-            if (tp1 - this.moveTick >= this.moveInterval) {
-                console.log("Wait time has been passed\n");
-                console.log(tp1 - this.moveTick + "\n");
-                this.moveTick = Date.now();
-                // Move only if player won't be out of bounds then.
-                if (this.pos[1] > 0) { this.pos[1] -= 1; }
+            if (rightPressed)
+            {
+                if (rightPressedBefore == false)
+                {
+                    // Move only if player won't be out of bounds then.
+                    if (this.pos[0] < playFieldSize[0]-1)
+                    {
+                        this.pos[0] += 1;
+                        rightPressedBefore = true;
+
+                        this.moveTick = Date.now();
+                    }
+                }
+            }
+            if (rightPressed == false)
+            {
+                rightPressedBefore = false;
+            }
+
+            if (upPressed)
+            {
+                if (upPressedBefore == false)
+                {
+                    // Move only if player won't be out of bounds then.
+                    if (this.pos[1] < playFieldSize[1] - 1)
+                    {
+                        this.pos[1] += 1;
+                        upPressedBefore = true;
+
+                        this.moveTick = Date.now();
+                    }
+                }
+            }
+            if (upPressed == false)
+            {
+                upPressedBefore = false;
+            }
+
+            if (downPressed)
+            {
+                if (downPressedBefore == false)
+                {
+                    // Move only if player won't be out of bounds then.
+                    if (this.pos[1] > 0)
+                    {
+                        this.pos[1] -= 1;
+                        downPressedBefore = true;
+
+                        this.moveTick = Date.now();
+                    }
+                }
+            }
+            if (downPressed == false)
+            {
+                downPressedBefore = false;
             }
         }
     }
@@ -210,6 +242,21 @@ class Player
             ctx.fillText("Camera World Coordinate Z: " + camera.pos[2], 0, 105);
         }
     }
+
+    projectPoints(a, b, c, d)
+    {
+        let x0 = (a[0]);
+        // Project points onto viewing plane
+        for (let i = 0; i < this.points.length / 3; i++)
+        {
+            // x
+            this.pointsVP[i * 3] = (this.points[i * 3] + this.pos[0] - camera.pos[0]) / (this.points[i * 3 + 2] + this.pos[2] - camera.pos[2]);
+            // y
+            this.pointsVP[i * 3 + 1] = (this.points[i * 3 + 1] + this.pos[1] - camera.pos[1]) / (this.points[i * 3 + 2] + this.pos[2] - camera.pos[2]);
+            // z
+            this.pointsVP[i * 3 + 2] = 1;
+        }
+    }
 }
 
 class Enemy
@@ -270,7 +317,7 @@ class Enemy
 
                 this.count += 1;
                 console.log("enemy added\n");
-                console.log(this.enemies);
+                //console.log(this.enemies);
             }
         }
 
@@ -305,7 +352,7 @@ class Enemy
                     // z
                     this.pointsVP[i * 3 + 2] = 1;
                 }
-                console.log(this.pointsVP);
+                //console.log(this.pointsVP);
 
                 // Draw all 6 quads
                 ctx.strokeStyle = this.color;
@@ -319,7 +366,7 @@ class Enemy
                     ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 3] * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 3] * 3 + 1] * zoom);
                     ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4    ] * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4    ] * 3 + 1] * zoom);
                     ctx.stroke();
-                    console.log("Drew quad.\n");
+                    //console.log("Drew quad.\n");
                 }
             }
         }
@@ -349,8 +396,8 @@ let elapsedTime = 0;
 
 let player = new Player;
 let camera = new Camera;
-camera.pos[0] = 5;
-camera.pos[1] = 1;
+camera.pos[0] = 2;
+camera.pos[1] = 2;
 let enemy = new Enemy;
 
 let zoom = 100;
