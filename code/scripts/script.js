@@ -44,13 +44,25 @@ class Player
         // ftl, ftr,fbr, fbl, btl, btr, bbr, bbl
         // front-top-left, front-top-right, front-bottom-right, front-bottom-left, back-top-left, back-top-right, back-bottom-right, back-bottom-left
         this.points = [-1,  1, -1,
-                   1,  1, -1,
-                   1, -1, -1,
-                  -1, -1, -1,
-                  -1,  1, -1,
-                   1,  1, -1,
-                   1, -1, -1,
-                  -1, -1, -1];
+                        1,  1, -1,
+                        1, -1, -1,
+                       -1, -1, -1,
+                       -1,  1, -1,
+                        1,  1, -1,
+                        1, -1, -1,
+                       -1, -1, -1];
+        // front-bottom-left (origin), front-top-left, front-top-right, front-bottom-right, back-bottom-left, back-top-left, back-top-right, back-bottom-right
+        // This has the origin in the front bottom left corner just like the collision detection uses.
+        /*
+        this.points = [0, 0, 0,
+                       0, 1, 0,
+                       1, 1, 0,
+                       1, 0, 0,
+                       0, 0, 1,
+                       0, 1, 1,
+                       1, 1, 1,
+                       1, 0, 1];
+        */
         // Front, left, back, right, top, bottom face.
         this.quads = [0, 1, 2, 3,
                       0, 3, 7, 4,
@@ -58,9 +70,8 @@ class Player
                       5, 6, 2, 1,
                       4, 5, 1, 0,
                       7, 6, 2, 3];
-        // The player's transformation matrix.
-        this.mat = [];
-        this.ang = 0;
+        // The points projected onto the viewing plane.
+        this.pointsVP = [];
     }
 
     getInput()
@@ -69,59 +80,37 @@ class Player
 
     update()
     {
-        this.getInput()
-
-        this.ang += 1 * (Math.PI / 180);
-        let s = Math.sin(this.ang);
-        let c = Math.cos(this.ang);
-        this.mat = [c, 0, -s, 0,
-                    0, 1,  0, 0,
-                    s, 0,  c, 4];
-
-        ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        this.draw(this.points, this.quads, this.mat);
+        this.getInput();
+        this.draw();
         console.log("finished drawing\n\n\n\n\n\n\n\n");
     }
 
-    draw(ps, qs, m)
+    draw()
     {
-        for (let i = 0; i < qs.length; i += 4)
-        {
-            let p0 = qs[i    ] * 4,
-                p1 = qs[i + 1] * 4,
-                p2 = qs[i + 2] * 4,
-                p3 = qs[i + 3] * 4;
-            let a = this.vertexShader(ps[p0], ps[p0 + 1], ps[p0 + 2], m);
-            let b = this.vertexShader(ps[p1], ps[p1 + 1], ps[p1 + 2], m);
-            let c = this.vertexShader(ps[p2], ps[p2 + 1], ps[p2 + 2], m);
-            let d = this.vertexShader(ps[p3], ps[p3 + 1], ps[p3 + 2], m);
-            this.fragmentShader(a, b, c, d);
+        ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+        // Project points onto viewing plane
+        for (let i = 0; i < this.points.length / 3; i++) {
+            // x
+            this.pointsVP[i * 3] = this.points[i * 3] / this.points[i * 3 + 2];
+            // y
+            this.pointsVP[i * 3 + 1] = this.points[i * 3 + 1] / this.points[i * 3 + 2];
+            // z
+            this.pointsVP[i * 3 + 2] = 1;
         }
-    }
+        console.log(this.pointsVP);
 
-    vertexShader(x, y, z, m)
-    {
-        var x0 = m[0] * x + m[1] * y + m[ 2] * z + m[ 3];
-        var y0 = m[4] * x + m[5] * y + m[ 6] * z + m[ 7];
-        var z0 = m[8] * x + m[9] * y + m[10] * z + m[11];
-        return [x0, y0, z0];
-    }
-
-    fragmentShader(a, b, c, d)
-    {
-        let x0 = 100 + 300 * a[0] / a[2], y0 = -100 + 300 * a[1] / a[2];
-        let x1 = 100 + 300 * b[0] / b[2], y1 = -100 + 300 * b[1] / b[2];
-        let x2 = 100 + 300 * c[0] / c[2], y2 = -100 + 300 * c[1] / c[2];
-        let x3 = 100 + 300 * d[0] / d[2], y3 = -100 + 300 * d[1] / d[2];
-
-        ctx.beginPath();
-        ctx.moveTo(x0, y0);
-        ctx.lineTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.lineTo(x3, y3);
-        ctx.lineTo(x0, y0);
-        ctx.stroke();
-        console.log("fragment drawn\n");
+        // Draw all 6 quads
+        for (let i = 0; i < this.quads.length/4; i++)
+        {
+            ctx.beginPath();
+            ctx.moveTo(this.pointsVP[this.quads[i * 4    ]  * 3] * zoom, this.pointsVP[this.quads[i * 4    ]  * 3 + 1 ] * zoom);
+            ctx.lineTo(this.pointsVP[this.quads[i * 4 + 1]  * 3] * zoom, this.pointsVP[this.quads[i * 4 + 1]  * 3 + 1 ] * zoom);
+            ctx.lineTo(this.pointsVP[this.quads[i * 4 + 2]  * 3] * zoom, this.pointsVP[this.quads[i * 4 + 2]  * 3 + 1 ] * zoom);
+            ctx.lineTo(this.pointsVP[this.quads[i * 4 + 3]  * 3] * zoom, this.pointsVP[this.quads[i * 4 + 3]  * 3 + 1 ] * zoom);
+            ctx.lineTo(this.pointsVP[this.quads[i * 4    ]  * 3] * zoom, this.pointsVP[this.quads[i * 4    ]  * 3 + 1 ] * zoom);
+            ctx.fill();
+        }
     }
 }
 
@@ -137,6 +126,7 @@ let elapsedTime = 0;
 
 let player = new Player;
 
+let zoom = 100;
 // The game loop
 window.main = function()
 {
