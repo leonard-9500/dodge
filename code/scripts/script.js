@@ -71,6 +71,14 @@ class Player
                         1,  1,  1,
                         1, -1,  1,
                        -1, -1,  1];
+        this.points = [-0.5,  0.5, -0.5,
+                        0.5,  0.5, -0.5,
+                        0.5, -0.5, -0.5,
+                       -0.5, -0.5, -0.5,
+                       -0.5,  0.5,  0.5,
+                        0.5,  0.5,  0.5,
+                        0.5, -0.5,  0.5,
+                       -0.5, -0.5,  0.5];
         // Front, left, back, right, top, bottom face.
         this.quads = [0, 1, 2, 3,
                       0, 3, 7, 4,
@@ -201,9 +209,8 @@ class Player
 
     draw()
     {
-        ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-
         // Project points onto viewing plane
+        //*
         for (let i = 0; i < this.points.length / 3; i++)
         {
             // x
@@ -213,6 +220,8 @@ class Player
             // z
             this.pointsVP[i * 3 + 2] = 1;
         }
+        //*/
+        //this.pointsVP = this.vertexShader(this.points, this.pos, camera.pos);
         //console.log(this.pointsVP);
 
         // Draw all 6 quads
@@ -243,19 +252,37 @@ class Player
         }
     }
 
-    projectPoints(a, b, c, d)
+    vertexShader(p, objPos, camPos)
     {
-        let x0 = (a[0]);
-        // Project points onto viewing plane
-        for (let i = 0; i < this.points.length / 3; i++)
+        // The object's points coordinates relative to the camera and the object's position. So it goes through world space and ends in camera space.
+        let pC = [];
+
+        // Move points so they are relative to the camera
+        for (let i = 0; i < p.length / 3; i++)
         {
             // x
-            this.pointsVP[i * 3] = (this.points[i * 3] + this.pos[0] - camera.pos[0]) / (this.points[i * 3 + 2] + this.pos[2] - camera.pos[2]);
+            pC[i * 3    ] = p[i * 3    ] + objPos[0] - camPos[0];
             // y
-            this.pointsVP[i * 3 + 1] = (this.points[i * 3 + 1] + this.pos[1] - camera.pos[1]) / (this.points[i * 3 + 2] + this.pos[2] - camera.pos[2]);
+            pC[i * 3 + 1] = p[i * 3 + 1] + objPos[1] - camPos[1];
             // z
-            this.pointsVP[i * 3 + 2] = 1;
+            pC[i * 3 + 2] = p[i * 3 + 2] + objPos[2] - camPos[2];
         }
+
+        // The object's points coordinates in screen space.
+        let pS = [];
+
+        // Project points onto viewing plane
+        for (let i = 0; i < p.length / 3; i++)
+        {
+            // x
+            pS[i * 3    ] = pC[i * 3    ] / pC[i * 3 + 2];
+            // y
+            pS[i * 3 + 1] = pC[i * 3 + 1] / pC[i * 3 + 2];
+            // z
+            pS[i * 3 + 2] = 1;
+        }
+
+        return pS;
     }
 }
 
@@ -271,6 +298,14 @@ class Enemy
                         1,  1,  1,
                         1, -1,  1,
                        -1, -1,  1];
+        this.points = [-0.5,  0.5, -0.5,
+                        0.5,  0.5, -0.5,
+                        0.5, -0.5, -0.5,
+                       -0.5, -0.5, -0.5,
+                       -0.5,  0.5,  0.5,
+                        0.5,  0.5,  0.5,
+                        0.5, -0.5,  0.5,
+                       -0.5, -0.5,  0.5];
         this.quads = [0, 1, 2, 3,
                       0, 3, 7, 4,
                       4, 7, 6, 5,
@@ -289,6 +324,10 @@ class Enemy
         this.spawnTick = Date.now();
         this.enemySpeed = 0.001;
         this.color = "#000000";
+        this.spawnLastX = 0;
+        this.spawnLastY = 0;
+        // Allow the enemy class to randomly spawn blocks that have the same x- and y-values.
+        this.consecutiveCoordinates = false;
     }
 
     update()
@@ -310,9 +349,29 @@ class Enemy
                 console.log(tp1 - this.spawnTick + "\n");
                 this.spawnTick = Date.now();
                 // Set the enemies x and y coordinates randomly within the play field
-                this.enemies[this.count * 3    ] = this.getRandomIntInclusive(0, playFieldSize[0] - 1);
-                this.enemies[this.count * 3 + 1] = this.getRandomIntInclusive(0, playFieldSize[1] - 1);
-                // Let the enemy spawn 20 units away from the origin.
+                if (this.consecutiveCoordinates)
+                {
+                    this.enemies[this.count * 3    ] = this.getRandomIntInclusive(0, playFieldSize[0] - 1);
+                    this.enemies[this.count * 3 + 1] = this.getRandomIntInclusive(0, playFieldSize[1] - 1);
+                }
+                // Set the enemy's x and y coordinates to a different value than the previous enemy's.
+                else if (this.consecutiveCoordinates == false)
+                {
+                    this.enemies[this.count * 3] = this.spawnLastX;
+                    this.enemies[this.count * 3 + 1] = this.spawnLastY;
+
+                    // Set the currently spawned enemy's x-coordinate randomly until they are not the same as the last enemies x-coordinate.
+                    while (this.enemies[this.count * 3] == this.spawnLastX)
+                    {
+                        this.enemies[this.count * 3] = this.getRandomIntInclusive(0, playFieldSize[0] - 1);
+                    }
+                    // Do the same with the currently spawned enemy's y-coordinate.
+                    while (this.enemies[this.count * 3 + 1] == this.spawnLastY)
+                    {
+                        this.enemies[this.count * 3 + 1] = this.getRandomIntInclusive(0, playFieldSize[1] - 1);
+                    }
+                }
+                // Let the enemy spawn 10 units away from the origin.
                 this.enemies[this.count * 3 + 2] = 10;
 
                 this.count += 1;
@@ -321,6 +380,7 @@ class Enemy
             }
         }
 
+        // Remove enemies that are behind the play field
         if (this.enemies[2] < 0)
         {
             // Delete the coordinates of the nearest enemy (the first 3 values: x, y and z) and reindex the array.
@@ -385,7 +445,7 @@ class Camera
 {
     constructor()
     {
-        this.pos = [0, 0, -2];
+        this.pos = [0, 0, -1];
     }
 }
 
@@ -396,8 +456,8 @@ let elapsedTime = 0;
 
 let player = new Player;
 let camera = new Camera;
-camera.pos[0] = 2;
-camera.pos[1] = 2;
+camera.pos[0] = 1;
+camera.pos[1] = 1;
 let enemy = new Enemy;
 
 let zoom = 100;
@@ -420,8 +480,9 @@ window.main = function()
     //console.log("elapsedTime:" + elapsedTime + "\n");
     tp1 = tp2;
 
-    player.update();
+    ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     enemy.update();
+    player.update();
 }
 
 // Start the game loop
