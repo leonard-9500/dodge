@@ -19,7 +19,7 @@ canvas.width = SCREEN_WIDTH;
 canvas.height = SCREEN_HEIGHT;
 
 // Flip the canvas' y-axis
-ctx.scale(1, -1);
+//ctx.scale(1, -1);
 
 /* Event listener definitions */
 document.addEventListener("keydown", keyDownHandler, false);
@@ -39,7 +39,7 @@ class Player
     constructor()
     {
         // x, y, z
-        this.pos = [1, 1, 1];
+        this.pos = [0, 0, 2];
         // The vertices of the player's mesh. A cube
         // ftl, ftr,fbr, fbl, btl, btr, bbr, bbl
         // front-top-left, front-top-right, front-bottom-right, front-bottom-left, back-top-left, back-top-right, back-bottom-right, back-bottom-left
@@ -47,10 +47,10 @@ class Player
                         1,  1, -1,
                         1, -1, -1,
                        -1, -1, -1,
-                       -1,  1, -1,
-                        1,  1, -1,
-                        1, -1, -1,
-                       -1, -1, -1];
+                       -1,  1,  1,
+                        1,  1,  1,
+                        1, -1,  1,
+                       -1, -1,  1];
         // front-bottom-left (origin), front-top-left, front-top-right, front-bottom-right, back-bottom-left, back-top-left, back-top-right, back-bottom-right
         // This has the origin in the front bottom left corner just like the collision detection uses.
         /*
@@ -92,9 +92,9 @@ class Player
         // Project points onto viewing plane
         for (let i = 0; i < this.points.length / 3; i++) {
             // x
-            this.pointsVP[i * 3] = this.points[i * 3] / this.points[i * 3 + 2];
+            this.pointsVP[i * 3] = (this.points[i * 3] + this.pos[0]) / (this.points[i * 3 + 2] + this.pos[2]);
             // y
-            this.pointsVP[i * 3 + 1] = this.points[i * 3 + 1] / this.points[i * 3 + 2];
+            this.pointsVP[i * 3 + 1] = (this.points[i * 3 + 1] + this.pos[1]) / (this.points[i * 3 + 2] + this.pos[2]);
             // z
             this.pointsVP[i * 3 + 2] = 1;
         }
@@ -104,12 +104,13 @@ class Player
         for (let i = 0; i < this.quads.length/4; i++)
         {
             ctx.beginPath();
-            ctx.moveTo(this.pointsVP[this.quads[i * 4    ]  * 3] * zoom, this.pointsVP[this.quads[i * 4    ]  * 3 + 1 ] * zoom);
-            ctx.lineTo(this.pointsVP[this.quads[i * 4 + 1]  * 3] * zoom, this.pointsVP[this.quads[i * 4 + 1]  * 3 + 1 ] * zoom);
-            ctx.lineTo(this.pointsVP[this.quads[i * 4 + 2]  * 3] * zoom, this.pointsVP[this.quads[i * 4 + 2]  * 3 + 1 ] * zoom);
-            ctx.lineTo(this.pointsVP[this.quads[i * 4 + 3]  * 3] * zoom, this.pointsVP[this.quads[i * 4 + 3]  * 3 + 1 ] * zoom);
-            ctx.lineTo(this.pointsVP[this.quads[i * 4    ]  * 3] * zoom, this.pointsVP[this.quads[i * 4    ]  * 3 + 1 ] * zoom);
-            ctx.fill();
+            // SCREEN_HEIGHT -  flips the y-axis of the canvas.
+            ctx.moveTo(originCX + this.pointsVP[this.quads[i * 4    ]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4    ]  * 3 + 1 ] * zoom);
+            ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 1]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 1]  * 3 + 1 ] * zoom);
+            ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 2]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 2]  * 3 + 1 ] * zoom);
+            ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4 + 3]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4 + 3]  * 3 + 1 ] * zoom);
+            ctx.lineTo(originCX + this.pointsVP[this.quads[i * 4    ]  * 3] * zoom, -originCY + SCREEN_HEIGHT - this.pointsVP[this.quads[i * 4    ]  * 3 + 1 ] * zoom);
+            ctx.stroke();
         }
     }
 }
@@ -127,6 +128,9 @@ let elapsedTime = 0;
 let player = new Player;
 
 let zoom = 100;
+// The position of the origin on the canvas. This centers the origin on the canvas.
+let originCX = 256;
+let originCY = 256;
 // The game loop
 window.main = function()
 {
