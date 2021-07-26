@@ -13,6 +13,7 @@ const SCREEN_WIDTH = 512;
 const SCREEN_HEIGHT = 512;
 // Show debug information like variable values for the player.
 const debugMode = true;
+const projectionType = "perspective";
 
 let canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -60,6 +61,7 @@ class Player
     {
         // x, y, z
         this.pos = [0, 0, 0];
+        this.rot = [0, 0, 0];
         // The vertices of the player's mesh. A cube
         // ftl, ftr,fbr, fbl, btl, btr, bbr, bbl
         // front-top-left, front-top-right, front-bottom-right, front-bottom-left, back-top-left, back-top-right, back-bottom-right, back-bottom-left
@@ -92,6 +94,16 @@ class Player
         this.moveInterval = 100;
         this.moveTick = Date.now();
         this.color = "#000000";
+        // Experimental
+        this.rotatedPoints = this.points;
+        // Rotate
+        for (let i = 0; i < this.points.length / 3; i++)
+        {
+            // For player rotation about the y-axis
+            // If you uncomment these two lines, the this.points array will get changed for some reason.
+            //this.rotatedPoints[i * 3] = this.points[i * 3] + Math.sin(this.rot[1] * Math.PI / 180);
+            //this.rotatedPoints[i * 3 + 2] = this.points[i * 3 + 2] + Math.cos(this.rot[1] * Math.PI / 180);
+        }
     }
 
     handleInput()
@@ -201,6 +213,7 @@ class Player
     {
         this.handleInput();
         this.collisionDetection();
+
         this.draw();
         //console.log("finished drawing\n\n\n\n\n\n\n\n");
     }
@@ -387,15 +400,34 @@ function vertexShader(p, objPos, camPos)
     // The object's points coordinates in screen space.
     let pS = [];
 
-    // Project points onto viewing plane
-    for (let i = 0; i < p.length / 3; i++)
+    // Lines that are parallel in 3d converge in 2d.
+    if (projectionType == "perspective")
     {
-        // x
-        pS[i * 3] = pC[i * 3] / pC[i * 3 + 2];
-        // y
-        pS[i * 3 + 1] = pC[i * 3 + 1] / pC[i * 3 + 2];
-        // z
-        pS[i * 3 + 2] = 1;
+        // Project points onto viewing plane
+        for (let i = 0; i < p.length / 3; i++)
+        {
+            // x
+            pS[i * 3] = pC[i * 3] / pC[i * 3 + 2];
+            // y
+            pS[i * 3 + 1] = pC[i * 3 + 1] / pC[i * 3 + 2];
+            // z
+            pS[i * 3 + 2] = 1;
+        }
+    }
+    // Experimental. The results of this are better looked at when camera angles are implemented.
+    // Lines that are parallel in 3d stay parallel in 2d.
+    else if (projectionType == "orthographic")
+    {
+        // Project points onto viewing plane
+        for (let i = 0; i < p.length / 3; i++)
+        {
+            // x
+            pS[i * 3] = pC[i * 3] / 1;
+            // y
+            pS[i * 3 + 1] = pC[i * 3 + 1] / 1;
+            // z
+            pS[i * 3 + 2] = 1;
+        }
     }
 
     return pS;
