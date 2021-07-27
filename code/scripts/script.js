@@ -9,8 +9,8 @@
 
 /**** INITIALIZATION ****/
 
-const SCREEN_WIDTH = 512;
-const SCREEN_HEIGHT = 512;
+const SCREEN_WIDTH = 1280;
+const SCREEN_HEIGHT = 720;
 // Show debug information like variable values for the player.
 const debugMode = true;
 const projectionType = "perspective";
@@ -29,15 +29,17 @@ canvas.height = SCREEN_HEIGHT;
 document.addEventListener("keydown", keyDownHandler, false);
 document.addEventListener("keyup", keyUpHandler, false);
 
-let leftPressed = false,
+let leftPressed  = false,
     rightPressed = false,
-    upPressed = false,
-    downPressed = false;
+    upPressed    = false,
+    downPressed  = false,
+    spacePressed = false;
 // If the user has just moved the player this becomes true and the user may only gain the ability to move the player again by first releasing the move button.
 let leftPressedBefore  = false,
     rightPressedBefore = false,
     upPressedBefore    = false,
-    downPressedBefore  = false;
+    downPressedBefore  = false,
+    spacePressedBefore = false;
 
 function keyDownHandler(e)
 {
@@ -45,6 +47,7 @@ function keyDownHandler(e)
     if (e.code == "KeyD") { rightPressed = true; }
     if (e.code == "KeyW") { upPressed    = true; }
     if (e.code == "KeyS") { downPressed  = true; }
+    if (e.code == "Space") { spacePressed = true; }
 }
 
 function keyUpHandler(e)
@@ -53,6 +56,7 @@ function keyUpHandler(e)
     if (e.code == "KeyD") { rightPressed = false; }
     if (e.code == "KeyW") { upPressed    = false; }
     if (e.code == "KeyS") { downPressed  = false; }
+    if (e.code == "Space") { spacePressed = false; }
 }
 
 /* Class definitions */
@@ -94,7 +98,14 @@ class Player
         // How long is the break between player movement, in ms. So the user has to wait 100ms after moving, before he can move again.
         this.moveInterval = 100;
         this.moveTick = Date.now();
+        this.lastHitTick = Date.now();
+        this.hit = false;
         this.color = "#000000";
+        this.score = 0;
+        this.lives = 3;
+        this.gameOver = false;
+        // Render the object as solid (true) or wireframe (false)
+        this.renderSolid = false;
         // Experimental
         this.rotatedPoints = this.points;
         // Rotate
@@ -194,6 +205,16 @@ class Player
                 downPressedBefore = false;
             }
         }
+
+        if (spacePressed)
+        {
+            if (this.gameOver)
+            {
+                // Reset the game
+                this.reset();
+                enemy.reset();
+            }
+        }
     }
 
     collisionDetection()
@@ -202,6 +223,23 @@ class Player
         if (enemy.enemies[0] == this.pos[0] && enemy.enemies[1] == this.pos[1] &&
             enemy.enemies[2] > this.pos[2] && enemy.enemies[2] < this.pos[2] + 1)
         {
+            // Only subtract a live once for every enemy. Without this if, the player's live would get taken away within three consecutive ticks.
+            if (Date.now() - this.lastHitTick > 1000)
+            {
+                if (this.lives > 0)
+                {
+                    this.lives -= 1;
+                    console.log(this.lives);
+                }
+                if (this.lives == 0)
+                {
+                    this.gameOver = true;
+                }
+
+                this.lastHitTick = Date.now();
+                this.hit = true;
+            }
+            // Draw the player in red
             this.color = "#ff0000";
         }
         else
@@ -217,6 +255,10 @@ class Player
 
         // Experimental
         //this.rot[1] += 1;
+        if (this.gameOver == false)
+        {
+            this.score = enemy.countDead;
+        }
         this.draw();
         //console.log("finished drawing\n\n\n\n\n\n\n\n");
     }
@@ -224,11 +266,26 @@ class Player
     draw()
     {
         this.pointsVP = vertexShader(this.points, this.rot, this.pos, camera.pos, camera.rot);
-        fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color);
+        fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color, this.renderSolid);
+
+        // Show score
+        ctx.fillStyle = "#000000";
+        ctx.font = "16px sans-serif";
+        ctx.fillText("Score " + this.score, SCREEN_WIDTH / 2, 50);
+
+        // Game over screen
+        if (this.gameOver == true)
+        {
+            ctx.fillStyle = "#000000";
+            ctx.font = "24px sans-serif";
+            ctx.fillText("Game Over", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 12);
+            ctx.fillText("You survived " + this.score + " enemies!", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 12);
+        }
 
         // Show debug information
         if (debugMode)
         {
+            ctx.fillStyle = "#000000";
             ctx.font = "12px sans-serif";
             ctx.fillText("Player World Coordinate X: " + player.pos[0], 0, 15);
             ctx.fillText("Player World Coordinate Y: " + player.pos[1], 0, 30);
@@ -238,6 +295,22 @@ class Player
             ctx.fillText("Camera World Coordinate Y: " + camera.pos[1], 0, 90);
             ctx.fillText("Camera World Coordinate Z: " + camera.pos[2], 0, 105);
         }
+    }
+
+    reset()
+    {
+        // This resets the player's values to their defaults
+        // x, y, z
+        this.pos = [0, 0, 0];
+        this.rot = [0, 0, 0];
+        // How long is the break between player movement, in ms. So the user has to wait 100ms after moving, before he can move again.
+        this.moveInterval = 100;
+        this.moveTick = Date.now();
+        this.lastHitTick = Date.now();
+        this.color = "#000000";
+        this.score = 0;
+        this.lives = 3;
+        this.gameOver = false;
     }
 }
 
@@ -275,11 +348,14 @@ class Enemy
         // The current number of enemy blocks in the level
         this.count = 0;
         this.maxCount = 10;
+        // The number of removed enemies.
+        this.countDead = 0;
         // After how many ms seconds can another enemy spawn
         this.spawnInterval = 1000;
         this.spawnTick = Date.now();
         this.enemySpeed = 0.001;
         this.color = "#000000";
+        this.renderSolid = false;
         this.spawnLastX = 0;
         this.spawnLastY = 0;
         // Allow the enemy class to randomly spawn blocks that have the same x- and y-values.
@@ -341,6 +417,7 @@ class Enemy
             // Delete the coordinates of the nearest enemy (the first 3 values: x, y and z) and reindex the array.
             this.enemies.splice(0, 3);
             this.count -= 1;
+            this.countDead += 1;
             console.log("Removed enemy.\n");
         }
 
@@ -361,7 +438,7 @@ class Enemy
                 let pos = [this.enemies[n * 3 - 3], this.enemies[n * 3 - 2], this.enemies[n * 3 - 1]];
 
                 this.pointsVP = vertexShader(this.points, this.rot, pos, camera.pos, camera.rot);
-                fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color);
+                fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color, this.renderSolid);
             }
         }
     }
@@ -372,6 +449,28 @@ class Enemy
         max = Math.floor(max);
         // The maximum and minimum are inclusive
         return Math.floor(Math.random() * (max - min + 1) + min);
+    }
+
+    reset()
+    {
+        // This resets the enemy's values to their defaults.
+
+        // An array of x, y, z triplets that each correspond to one enemy.
+        this.enemies = [];
+        // The current number of enemy blocks in the level
+        this.count = 0;
+        this.maxCount = 10;
+        // The number of removed enemies.
+        this.countDead = 0;
+        // After how many ms seconds can another enemy spawn
+        this.spawnInterval = 1000;
+        this.spawnTick = Date.now();
+        this.enemySpeed = 0.001;
+        this.color = "#000000";
+        this.spawnLastX = 0;
+        this.spawnLastY = 0;
+        // Allow the enemy class to randomly spawn blocks that have the same x- and y-values.
+        this.consecutiveCoordinates = false;
     }
 }
 
@@ -385,7 +484,10 @@ class Camera
 
     update()
     {
-        this.rot[1] += 0.1;
+        //this.rot[1] += 0.1;
+        //this.pos[0] = player.pos[0] + 0.5;
+        //this.pos[1] = player.pos[1] + 0.5;
+        //this.pos[2] = -8;
     }
 }
 
@@ -393,10 +495,61 @@ class Camera
 // p = array of points in 3 dimensions like [x, y, z] , r = rotation matrix of the object, cr = rotation matrix of the camera.
 function vertexShader(p, r, objPos, camPos, cr)
 {
+    let pB = [];
+    let sinAngY = 0;
+    let cosAngY = 0;
+    let rotY = r[1] - cr[1];
+
+    // Instead of applying object and camera rotation separately one could do this
+    // let rotY = r[1] - cr[1]; and then iterate over the array for once. e.g. if the object is rotated +30 and the camera is rotated +30, the rotations cancel out.
+    // Apply object rotation
+    sinAngY = Math.sin(r[1] * radians);
+    cosAngY = Math.cos(r[1] * radians);
+    for (let i = 0; i < p.length / 3; i++)
+    {
+        // x
+        pB[i * 3] = p[i * 3] * cosAngY + p[i * 3 + 1] * 0 + p[i * 3 + 2] * -sinAngY;
+        // y
+        pB[i * 3 + 1] = p[i * 3 + 1] * 1;
+        // z the negative with the brackets makes the object's points follow the left-hand coordinate system convention for rotation.
+        // This way when looking towards the positive end of the y-axis, the points rotate counter-clock wise when the angle is positive and clock-wise if negative.
+        pB[i * 3 + 2] = -(p[i * 3] * sinAngY + p[i * 3 + 1] * 0 + p[i * 3 + 2] * cosAngY);
+    }
+    p = pB;
+
+    // Apply object and camera position
+    for (let i = 0; i < p.length / 3; i++)
+    {
+        // x
+        pB[i * 3] = p[i * 3] + objPos[0] - camPos[0];
+        // y
+        pB[i * 3 + 1] = p[i * 3 + 1] + objPos[1] - camPos[1];
+        // z
+        pB[i * 3 + 2] = p[i * 3 + 2] + objPos[2] - camPos[2];
+    }
+    p = pB;
+
+    // Apply camera rotation
+    sinAngY = Math.sin(cr[1] * radians);
+    cosAngY = Math.cos(cr[1] * radians);
+
+    for (let i = 0; i < p.length / 3; i++)
+    {
+        // x
+        pB[i * 3] = p[i * 3] * cosAngY + p[i * 3 + 1] * 0 + p[i * 3 + 2] * -sinAngY;
+        // y
+        pB[i * 3 + 1] = p[i * 3 + 1] * 1;
+        // z the negative with the brackets makes the object's points follow the left-hand coordinate system convention for rotation.
+        // This way when looking towards the positive end of the y-axis, the points rotate counter-clock wise when the angle is positive and clock-wise if negative.
+        pB[i * 3 + 2] = p[i * 3] * sinAngY + p[i * 3 + 1] * 0 + p[i * 3 + 2] * cosAngY;
+    }
+    p = pB;
+
     // The object's coordinates in world space. With object rotation transformations applied.
-    let pW = [];
+    //let pW = [];
 
     // Transform player points in player/object space to accommodate for player rotation.
+    /*
     let sinAngY = Math.sin(r[1] * radians);
     let cosAngY = Math.cos(r[1] * radians);
     for (let i = 0; i < p.length / 3; i++)
@@ -409,10 +562,12 @@ function vertexShader(p, r, objPos, camPos, cr)
         // This way when looking towards the positive end of the y-axis, the points rotate counter-clock wise when the angle is positive and clock-wise if negative.
         pW[i * 3 + 2] = -(p[i * 3] * sinAngY + p[i * 3 + 1] * 0 + p[i * 3 + 2] * cosAngY);
     }
+    */
 
     // The object's points coordinates relative to the camera and the object's position. So it goes through world space and ends in camera space.
-    let pC = [];
+    //let pC = [];
 
+    /*
     // Move points so they are relative to the camera
     for (let i = 0; i < p.length / 3; i++)
     {
@@ -440,7 +595,7 @@ function vertexShader(p, r, objPos, camPos, cr)
 
     // The object's points coordinates in screen space.
     let pS = [];
-
+    */
     // Lines that are parallel in 3d converge in 2d.
     if (projectionType == "perspective")
     {
@@ -448,11 +603,11 @@ function vertexShader(p, r, objPos, camPos, cr)
         for (let i = 0; i < p.length / 3; i++)
         {
             // x
-            pS[i * 3] = pCR[i * 3] / pCR[i * 3 + 2];
+            pB[i * 3] = p[i * 3] / p[i * 3 + 2];
             // y
-            pS[i * 3 + 1] = pCR[i * 3 + 1] / pCR[i * 3 + 2];
+            pB[i * 3 + 1] = p[i * 3 + 1] / p[i * 3 + 2];
             // z
-            pS[i * 3 + 2] = 1;
+            pB[i * 3 + 2] = 1;
         }
     }
     // Experimental. The results of this are better looked at when camera angles are implemented.
@@ -470,13 +625,15 @@ function vertexShader(p, r, objPos, camPos, cr)
             pS[i * 3 + 2] = 1;
         }
     }
+    p = pB;
 
-    return pS;
+    return p;
 }
 
-function fragmentShader(p, q, z, offsetX, offsetY, color)
+function fragmentShader(p, q, z, offsetX, offsetY, color, renderSolid)
 {
     ctx.strokeStyle = color;
+    ctx.fillStyle = color;
     for (let i = 0; i < q.length / 4; i++)
     {
         // The vertices of the current quad to be drawn.
@@ -490,7 +647,14 @@ function fragmentShader(p, q, z, offsetX, offsetY, color)
         ctx.lineTo(offsetX + p[c * 3] * z, -offsetY + SCREEN_HEIGHT - p[c * 3 + 1] * z);
         ctx.lineTo(offsetX + p[d * 3] * z, -offsetY + SCREEN_HEIGHT - p[d * 3 + 1] * z);
         ctx.lineTo(offsetX + p[a * 3] * z, -offsetY + SCREEN_HEIGHT - p[a * 3 + 1] * z);
-        ctx.stroke();
+        if (renderSolid)
+        {
+            ctx.fill();
+        }
+        else if (renderSolid == false)
+        {
+            ctx.stroke();
+        }
     }
 }
 
@@ -501,11 +665,12 @@ let elapsedTime = 0;
 
 let player = new Player;
 let camera = new Camera;
-camera.pos[0] = 1;
-camera.pos[1] = 1;
+//camera.pos = [20, 4, -20];
+//camera.rot = [0, -25, 0];
+camera.pos = [1, 1, -4];
 let enemy = new Enemy;
 
-let zoom = 100;
+let zoom = 800;
 // The position of the origin on the canvas. This centers the origin on the canvas.
 let originCX = 256;
 let originCY = 256;
