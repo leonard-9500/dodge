@@ -60,6 +60,105 @@ function keyUpHandler(e)
 }
 
 /* Class definitions */
+class Cube
+{
+    constructor()
+    {
+        // x, y, z
+        this.pos = [0, 0, 0];
+        this.rot = [0, 0, 0];
+        // Don't rename this to "scale". JS won't be able to call the below function as it's called "scale".
+        this.scl = [1, 1, 1];
+        // front-top-left, front-top-right, front-bottom-right, front-bottom-left, back-top-left, back-top-right, back-bottom-right, back-bottom-left
+        this.points = [-1,  1, -1,
+                        1,  1, -1,
+                        1, -1, -1,
+                       -1, -1, -1,
+                       -1,  1,  1,
+                        1,  1,  1,
+                        1, -1,  1,
+                       -1, -1,  1];
+        this.points = [-0.5,  0.5, -0.5,
+                        0.5,  0.5, -0.5,
+                        0.5, -0.5, -0.5,
+                       -0.5, -0.5, -0.5,
+                       -0.5,  0.5,  0.5,
+                        0.5,  0.5,  0.5,
+                        0.5, -0.5,  0.5,
+                       -0.5, -0.5,  0.5];
+        // Front, left, back, right, top, bottom face.
+        this.quads = [0, 1, 2, 3,
+                      0, 3, 7, 4,
+                      4, 7, 6, 5,
+                      5, 6, 2, 1,
+                      4, 5, 1, 0,
+                      7, 6, 2, 3];
+        // The points projected onto the viewing plane.
+        this.pointsVP = [];
+        this.color = "#000000";
+        // Render the object as solid (true) or wireframe (false)
+        this.renderSolid = false;
+    }
+
+    update()
+    {
+        this.draw();
+    }
+
+    draw()
+    {
+        this.pointsVP = vertexShader(this.points, this.rot, this.pos, camera.pos, camera.rot);
+        fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color, this.renderSolid);
+    }
+
+    scale(sx, sy, sz)
+    {
+        for (let i = 0; i < this.points.length / 3; i++)
+        {
+            this.points[i * 3]     *= sx;
+            this.points[i * 3 + 1] *= sy;
+            this.points[i * 3 + 2] *= sz;
+        }
+    }
+
+    reset()
+    {
+        // x, y, z
+        this.pos = [0, 0, 0];
+        this.rot = [0, 0, 0];
+        this.scale = [1, 1, 1];
+        // front-top-left, front-top-right, front-bottom-right, front-bottom-left, back-top-left, back-top-right, back-bottom-right, back-bottom-left
+        this.points = [-1,  1, -1,
+                        1,  1, -1,
+                        1, -1, -1,
+                       -1, -1, -1,
+                       -1,  1,  1,
+                        1,  1,  1,
+                        1, -1,  1,
+                       -1, -1,  1];
+        this.points = [-0.5,  0.5, -0.5,
+                        0.5,  0.5, -0.5,
+                        0.5, -0.5, -0.5,
+                       -0.5, -0.5, -0.5,
+                       -0.5,  0.5,  0.5,
+                        0.5,  0.5,  0.5,
+                        0.5, -0.5,  0.5,
+                       -0.5, -0.5,  0.5];
+        // Front, left, back, right, top, bottom face.
+        this.quads = [0, 1, 2, 3,
+                      0, 3, 7, 4,
+                      4, 7, 6, 5,
+                      5, 6, 2, 1,
+                      4, 5, 1, 0,
+                      7, 6, 2, 3];
+        // The points projected onto the viewing plane.
+        this.pointsVP = [];
+        this.color = "#000000";
+        // Render the object as solid (true) or wireframe (false)
+        this.renderSolid = false;
+    }
+}
+
 class Player
 {
     constructor()
@@ -495,10 +594,10 @@ class Camera
 // p = array of points in 3 dimensions like [x, y, z] , r = rotation matrix of the object, cr = rotation matrix of the camera.
 function vertexShader(p, r, objPos, camPos, cr)
 {
+    // The buffer array
     let pB = [];
     let sinAngY = 0;
     let cosAngY = 0;
-    let rotY = r[1] - cr[1];
 
     // Instead of applying object and camera rotation separately one could do this
     // let rotY = r[1] - cr[1]; and then iterate over the array for once. e.g. if the object is rotated +30 and the camera is rotated +30, the rotations cancel out.
@@ -545,57 +644,6 @@ function vertexShader(p, r, objPos, camPos, cr)
     }
     p = pB;
 
-    // The object's coordinates in world space. With object rotation transformations applied.
-    //let pW = [];
-
-    // Transform player points in player/object space to accommodate for player rotation.
-    /*
-    let sinAngY = Math.sin(r[1] * radians);
-    let cosAngY = Math.cos(r[1] * radians);
-    for (let i = 0; i < p.length / 3; i++)
-    {
-        // x
-        pW[i * 3] = p[i * 3] * cosAngY + p[i * 3 + 1] * 0 + p[i * 3 + 2] * -sinAngY;
-        // y
-        pW[i * 3 + 1] = p[i * 3 + 1] * 1;
-        // z the negative with the brackets makes the object's points follow the left-hand coordinate system convention for rotation.
-        // This way when looking towards the positive end of the y-axis, the points rotate counter-clock wise when the angle is positive and clock-wise if negative.
-        pW[i * 3 + 2] = -(p[i * 3] * sinAngY + p[i * 3 + 1] * 0 + p[i * 3 + 2] * cosAngY);
-    }
-    */
-
-    // The object's points coordinates relative to the camera and the object's position. So it goes through world space and ends in camera space.
-    //let pC = [];
-
-    /*
-    // Move points so they are relative to the camera
-    for (let i = 0; i < p.length / 3; i++)
-    {
-        // x
-        pC[i * 3] = pW[i * 3] + objPos[0];
-        // y
-        pC[i * 3 + 1] = pW[i * 3 + 1] + objPos[1];
-        // z
-        pC[i * 3 + 2] = pW[i * 3 + 2] + objPos[2];
-    }
-
-    // Rotate the points so they are relative to the camera
-    let pCR = [];
-    sinAngY = Math.sin(cr[1] * radians);
-    cosAngY = Math.cos(cr[1] * radians);
-    for (let i = 0; i < p.length / 3; i++)
-    {
-        // x
-        pCR[i * 3] = pC[i * 3] * cosAngY + pC[i * 3 + 1] * 0 + pC[i * 3 + 2] * -sinAngY - camPos[0];
-        // y
-        pCR[i * 3 + 1] = pC[i * 3 + 1] * 1 - camPos[1];
-        // z leaving the negative for this one makes the points rotate opposite of the camera rotation.
-        pCR[i * 3 + 2] = pC[i * 3] * sinAngY + pC[i * 3 + 1] * 0 + pC[i * 3 + 2] * cosAngY - camPos[2];
-    }
-
-    // The object's points coordinates in screen space.
-    let pS = [];
-    */
     // Lines that are parallel in 3d converge in 2d.
     if (projectionType == "perspective")
     {
@@ -670,6 +718,25 @@ let camera = new Camera;
 camera.pos = [1, 1, -4];
 let enemy = new Enemy;
 
+// Walls for showing where the play area is.
+let leftWall = new Cube;
+leftWall.pos = [-1, 1, 9.5]
+leftWall.color = "#bbbbbb";
+leftWall.renderSolid = true;
+leftWall.scale(1, 3, 20);
+
+let bottomWall = new Cube;
+bottomWall.pos = [1, -1, 9.5]
+bottomWall.color = "#999999";
+bottomWall.renderSolid = true;
+bottomWall.scale(3, 1, 20);
+
+let backWall = new Cube;
+backWall.pos = [1, 1, 20]
+backWall.color = "#666666";
+backWall.renderSolid = true;
+backWall.scale(3, 3, 1);
+
 let zoom = 800;
 // The position of the origin on the canvas. This centers the origin on the canvas.
 let originCX = 256;
@@ -692,6 +759,11 @@ window.main = function()
 
     ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     camera.update();
+
+    leftWall.update();
+    bottomWall.update();
+    backWall.update();
+
     enemy.update();
     player.update();
 }
