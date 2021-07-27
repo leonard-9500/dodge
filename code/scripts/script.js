@@ -14,6 +14,7 @@ const SCREEN_HEIGHT = 512;
 // Show debug information like variable values for the player.
 const debugMode = true;
 const projectionType = "perspective";
+const radians = Math.PI / 180;
 
 let canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -214,13 +215,15 @@ class Player
         this.handleInput();
         this.collisionDetection();
 
+        // Experimental
+        //this.rot[1] += 1;
         this.draw();
         //console.log("finished drawing\n\n\n\n\n\n\n\n");
     }
 
     draw()
     {
-        this.pointsVP = vertexShader(this.points, this.pos, camera.pos);
+        this.pointsVP = vertexShader(this.points, this.rot, this.pos, camera.pos, camera.rot);
         fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color);
 
         // Show debug information
@@ -250,6 +253,7 @@ class Enemy
                         1,  1,  1,
                         1, -1,  1,
                        -1, -1,  1];
+        this.rot = [0, 0, 0];
         this.points = [-0.5,  0.5, -0.5,
                         0.5,  0.5, -0.5,
                         0.5, -0.5, -0.5,
@@ -356,7 +360,7 @@ class Enemy
                 // Let pos contain the current enemy's coordinates.
                 let pos = [this.enemies[n * 3 - 3], this.enemies[n * 3 - 2], this.enemies[n * 3 - 1]];
 
-                this.pointsVP = vertexShader(this.points, pos, camera.pos);
+                this.pointsVP = vertexShader(this.points, this.rot, pos, camera.pos, camera.rot);
                 fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color);
             }
         }
@@ -366,7 +370,7 @@ class Enemy
     {
         min = Math.ceil(min);
         max = Math.floor(max);
-        // The maximum and minimun are inclusive
+        // The maximum and minimum are inclusive
         return Math.floor(Math.random() * (max - min + 1) + min);
     }
 }
@@ -376,13 +380,36 @@ class Camera
     constructor()
     {
         this.pos = [0, 0, -1];
+        this.rot = [0, 0, 0];
+    }
+
+    update()
+    {
+        this.rot[1] += 0.1;
     }
 }
 
 /* Function definitions */
-// p = array of points in 3 dimensions like [x, y, z]
-function vertexShader(p, objPos, camPos)
+// p = array of points in 3 dimensions like [x, y, z] , r = rotation matrix of the object, cr = rotation matrix of the camera.
+function vertexShader(p, r, objPos, camPos, cr)
 {
+    // The object's coordinates in world space. With object rotation transformations applied.
+    let pW = [];
+
+    // Transform player points in player/object space to accommodate for player rotation.
+    let sinAngY = Math.sin(r[1] * radians);
+    let cosAngY = Math.cos(r[1] * radians);
+    for (let i = 0; i < p.length / 3; i++)
+    {
+        // x
+        pW[i * 3] = p[i * 3] * cosAngY + p[i * 3 + 1] * 0 + p[i * 3 + 2] * -sinAngY;
+        // y
+        pW[i * 3 + 1] = p[i * 3 + 1] * 1;
+        // z the negative with the brackets makes the object's points follow the left-hand coordinate system convention for rotation.
+        // This way when looking towards the positive end of the y-axis, the points rotate counter-clock wise when the angle is positive and clock-wise if negative.
+        pW[i * 3 + 2] = -(p[i * 3] * sinAngY + p[i * 3 + 1] * 0 + p[i * 3 + 2] * cosAngY);
+    }
+
     // The object's points coordinates relative to the camera and the object's position. So it goes through world space and ends in camera space.
     let pC = [];
 
@@ -390,11 +417,25 @@ function vertexShader(p, objPos, camPos)
     for (let i = 0; i < p.length / 3; i++)
     {
         // x
-        pC[i * 3] = p[i * 3] + objPos[0] - camPos[0];
+        pC[i * 3] = pW[i * 3] + objPos[0];
         // y
-        pC[i * 3 + 1] = p[i * 3 + 1] + objPos[1] - camPos[1];
+        pC[i * 3 + 1] = pW[i * 3 + 1] + objPos[1];
         // z
-        pC[i * 3 + 2] = p[i * 3 + 2] + objPos[2] - camPos[2];
+        pC[i * 3 + 2] = pW[i * 3 + 2] + objPos[2];
+    }
+
+    // Rotate the points so they are relative to the camera
+    let pCR = [];
+    sinAngY = Math.sin(cr[1] * radians);
+    cosAngY = Math.cos(cr[1] * radians);
+    for (let i = 0; i < p.length / 3; i++)
+    {
+        // x
+        pCR[i * 3] = pC[i * 3] * cosAngY + pC[i * 3 + 1] * 0 + pC[i * 3 + 2] * -sinAngY - camPos[0];
+        // y
+        pCR[i * 3 + 1] = pC[i * 3 + 1] * 1 - camPos[1];
+        // z leaving the negative for this one makes the points rotate opposite of the camera rotation.
+        pCR[i * 3 + 2] = pC[i * 3] * sinAngY + pC[i * 3 + 1] * 0 + pC[i * 3 + 2] * cosAngY - camPos[2];
     }
 
     // The object's points coordinates in screen space.
@@ -407,9 +448,9 @@ function vertexShader(p, objPos, camPos)
         for (let i = 0; i < p.length / 3; i++)
         {
             // x
-            pS[i * 3] = pC[i * 3] / pC[i * 3 + 2];
+            pS[i * 3] = pCR[i * 3] / pCR[i * 3 + 2];
             // y
-            pS[i * 3 + 1] = pC[i * 3 + 1] / pC[i * 3 + 2];
+            pS[i * 3 + 1] = pCR[i * 3 + 1] / pCR[i * 3 + 2];
             // z
             pS[i * 3 + 2] = 1;
         }
@@ -485,6 +526,7 @@ window.main = function()
     tp1 = tp2;
 
     ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    camera.update();
     enemy.update();
     player.update();
 }
