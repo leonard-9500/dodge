@@ -60,6 +60,17 @@ function keyUpHandler(e)
 }
 
 /* Class definitions */
+class Sun
+{
+    constructor()
+    {
+        this.pos = [0, 0, 0];
+        this.rot = [0, 0, 0];
+        this.intensity = 1.0;
+        this.color = "#ffffff";
+    }
+}
+
 class Cube
 {
     constructor()
@@ -95,9 +106,11 @@ class Cube
                       7, 6, 2, 3];
         // The points projected onto the viewing plane.
         this.pointsVP = [];
-        this.color = "#000000";
+        this.faceColor = "#bbbbbb";
+        this.edgeColor = "#000000";
         // Render the object as solid (true) or wireframe (false)
-        this.renderSolid = false;
+        this.renderSolid = true;
+        this.renderWireframe = false;
     }
 
     update()
@@ -108,7 +121,7 @@ class Cube
     draw()
     {
         this.pointsVP = vertexShader(this.points, this.rot, this.pos, camera.pos, camera.rot);
-        fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color, this.renderSolid);
+        fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.faceColor, this.edgeColor, this.renderSolid, this.renderWireframe, this.pos);
     }
 
     scale(sx, sy, sz)
@@ -199,12 +212,15 @@ class Player
         this.moveTick = Date.now();
         this.lastHitTick = Date.now();
         this.hit = false;
-        this.color = "#000000";
+        this.faceColor = "#000000";
+        this.edgeColor = "#ffca38";
         this.score = 0;
         this.lives = 3;
         this.gameOver = false;
-        // Render the object as solid (true) or wireframe (false)
+        // Render the object as solid
         this.renderSolid = false;
+        // Render the object as wireframe. These can also both be true.
+        this.renderWireframe = true;
         // Experimental
         this.rotatedPoints = this.points;
         // Rotate
@@ -339,11 +355,13 @@ class Player
                 this.hit = true;
             }
             // Draw the player in red
-            this.color = "#ff0000";
+            this.faceColor = "#ff0000";
+            this.edgeColor = "#ff0000";
         }
         else
         {
-            this.color = "#000000";
+            this.faceColor = "#000000";
+            this.edgeColor = "#ffca38";
         }
     }
 
@@ -365,7 +383,7 @@ class Player
     draw()
     {
         this.pointsVP = vertexShader(this.points, this.rot, this.pos, camera.pos, camera.rot);
-        fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color, this.renderSolid);
+        fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.faceColor, this.edgeColor, this.renderSolid, this.renderWireframe, this.pos);
 
         // Show score
         ctx.fillStyle = "#000000";
@@ -453,8 +471,10 @@ class Enemy
         this.spawnInterval = 1000;
         this.spawnTick = Date.now();
         this.enemySpeed = 0.001;
-        this.color = "#000000";
-        this.renderSolid = false;
+        this.faceColor = "#ffffff";
+        this.edgeColor = "#ff0000";
+        this.renderSolid = true;
+        this.renderWireframe = true;
         this.spawnLastX = 0;
         this.spawnLastY = 0;
         // Allow the enemy class to randomly spawn blocks that have the same x- and y-values.
@@ -537,7 +557,7 @@ class Enemy
                 let pos = [this.enemies[n * 3 - 3], this.enemies[n * 3 - 2], this.enemies[n * 3 - 1]];
 
                 this.pointsVP = vertexShader(this.points, this.rot, pos, camera.pos, camera.rot);
-                fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.color, this.renderSolid);
+                fragmentShader(this.pointsVP, this.quads, zoom, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, this.faceColor, this.edgeColor, this.renderSolid, this.renderWireframe, pos);
             }
         }
     }
@@ -599,8 +619,6 @@ function vertexShader(p, r, objPos, camPos, cr)
     let sinAngY = 0;
     let cosAngY = 0;
 
-    // Instead of applying object and camera rotation separately one could do this
-    // let rotY = r[1] - cr[1]; and then iterate over the array for once. e.g. if the object is rotated +30 and the camera is rotated +30, the rotations cancel out.
     // Apply object rotation
     sinAngY = Math.sin(r[1] * radians);
     cosAngY = Math.cos(r[1] * radians);
@@ -678,10 +696,47 @@ function vertexShader(p, r, objPos, camPos, cr)
     return p;
 }
 
-function fragmentShader(p, q, z, offsetX, offsetY, color, renderSolid)
+function fragmentShader(p, q, z, offsetX, offsetY, faceColor, edgeColor, renderSolid, renderWireframe, objPos)
 {
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
+    // Sort the object's faces by depth. Near to far.
+    let swapped = false;
+    let b0 = 0,
+        b1 = 0,
+        b2 = 0,
+        b3 = 0;
+    do
+    {
+        swapped = false;
+        for (let i = 1; i < q.length; i++)
+        {
+            // Compare the z-values of each vertex
+            let q1AvgZ = (p[q[(i - 1) * 4] + 2] + p[q[(i - 1) * 4 + 1] + 2] + p[q[(i - 1) * 4 + 2] + 2] + p[q[(i - 1) * 4 + 3] + 2]) / 4 + objPos[2];
+            let q2AvgZ = (p[q[i * 4      ] + 2] + p[q[i * 4 + 1      ] + 2] + p[q[i * 4 + 2      ] + 2] + p[q[i * 4 + 3      ] + 2]) / 4 + objPos[2];
+            if (q1AvgZ < q2AvgZ)
+            {
+                // Store the four vertices that correspond to the quad with the greater average z-value in the buffer.
+                b0 = q[(i - 1) * 4    ];
+                b1 = q[(i - 1) * 4 + 1];
+                b2 = q[(i - 1) * 4 + 2];
+                b3 = q[(i - 1) * 4 + 3];
+
+                q[(i - 1) * 4    ] = q[i * 4    ];
+                q[(i - 1) * 4 + 1] = q[i * 4 + 1];
+                q[(i - 1) * 4 + 2] = q[i * 4 + 2];
+                q[(i - 1) * 4 + 3] = q[i * 4 + 3];
+
+                q[i * 4    ] = b0;
+                q[i * 4 + 1] = b1;
+                q[i * 4 + 2] = b2;
+                q[i * 4 + 3] = b3;
+
+                swapped = true;
+            }
+        }
+    } while (swapped);
+
+    ctx.strokeStyle = edgeColor;
+    ctx.fillStyle = faceColor;
     for (let i = 0; i < q.length / 4; i++)
     {
         // The vertices of the current quad to be drawn.
@@ -689,6 +744,7 @@ function fragmentShader(p, q, z, offsetX, offsetY, color, renderSolid)
             b = q[i * 4 + 1],
             c = q[i * 4 + 2],
             d = q[i * 4 + 3];
+
         ctx.beginPath();
         ctx.moveTo(offsetX + p[a * 3] * z, -offsetY + SCREEN_HEIGHT - p[a * 3 + 1] * z);
         ctx.lineTo(offsetX + p[b * 3] * z, -offsetY + SCREEN_HEIGHT - p[b * 3 + 1] * z);
@@ -697,9 +753,17 @@ function fragmentShader(p, q, z, offsetX, offsetY, color, renderSolid)
         ctx.lineTo(offsetX + p[a * 3] * z, -offsetY + SCREEN_HEIGHT - p[a * 3 + 1] * z);
         if (renderSolid)
         {
+            // Take the average of the z-values of the current four vertices.
+            let qAvgZ = (p[q[i * 4] + 2] + p[q[i * 4 + 1] + 2] + p[q[i * 4 + 2] + 2] + p[q[i * 4 + 3] + 2]) / 4 + objPos[2];
+            // Convert the hex color values to rgb.
+            let cr = parseInt(faceColor[1], 16) * 16 + parseInt(faceColor[2], 16) * 16;
+            let cg = parseInt(faceColor[3], 16) * 16 + parseInt(faceColor[4], 16) * 16;
+            let cb = parseInt(faceColor[5], 16) * 16 + parseInt(faceColor[6], 16) * 16;
+            ctx.fillStyle = `rgb(${cr / qAvgZ}, ${cg / qAvgZ}, ${cb / qAvgZ})`;
             ctx.fill();
+            // Calculate how much light the surface gets.
         }
-        else if (renderSolid == false)
+        if (renderWireframe)
         {
             ctx.stroke();
         }
@@ -721,21 +785,24 @@ let enemy = new Enemy;
 // Walls for showing where the play area is.
 let leftWall = new Cube;
 leftWall.pos = [-1, 1, 9.5]
-leftWall.color = "#bbbbbb";
+leftWall.faceColor = "#bbbbbb";
 leftWall.renderSolid = true;
 leftWall.scale(1, 3, 20);
 
 let bottomWall = new Cube;
 bottomWall.pos = [1, -1, 9.5]
-bottomWall.color = "#999999";
+bottomWall.faceColor = "#999999";
 bottomWall.renderSolid = true;
 bottomWall.scale(3, 1, 20);
 
 let backWall = new Cube;
 backWall.pos = [1, 1, 20]
-backWall.color = "#666666";
+backWall.faceColor = "#666666";
 backWall.renderSolid = true;
 backWall.scale(3, 3, 1);
+
+let sun = new Sun;
+sun.color = "#ffd745";
 
 let zoom = 800;
 // The position of the origin on the canvas. This centers the origin on the canvas.
