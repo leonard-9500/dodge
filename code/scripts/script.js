@@ -474,7 +474,7 @@ class Enemy
         this.faceColor = "#ffffff";
         this.edgeColor = "#ff0000";
         this.renderSolid = true;
-        this.renderWireframe = true;
+        this.renderWireframe = false;
         this.spawnLastX = 0;
         this.spawnLastY = 0;
         // Allow the enemy class to randomly spawn blocks that have the same x- and y-values.
@@ -698,6 +698,7 @@ function vertexShader(p, r, objPos, camPos, cr)
 
 function fragmentShader(p, q, z, offsetX, offsetY, faceColor, edgeColor, renderSolid, renderWireframe, objPos)
 {
+    /*
     // Sort the object's faces by depth. Near to far.
     let swapped = false;
     let b0 = 0,
@@ -734,6 +735,7 @@ function fragmentShader(p, q, z, offsetX, offsetY, faceColor, edgeColor, renderS
             }
         }
     } while (swapped);
+    */
 
     ctx.strokeStyle = edgeColor;
     ctx.fillStyle = faceColor;
@@ -775,10 +777,15 @@ let tp1 = Date.now();
 let tp2 = Date.now();
 let elapsedTime = 0;
 
+let zoom = 800;
+
 let player = new Player;
 let camera = new Camera;
 //camera.pos = [20, 4, -20];
 //camera.rot = [0, -25, 0];
+//camera.pos = [150, 4, -300];
+//camera.rot = [0, -25, 0];
+//zoom = 12000;
 camera.pos = [1, 1, -4];
 let enemy = new Enemy;
 
@@ -804,7 +811,6 @@ backWall.scale(3, 3, 1);
 let sun = new Sun;
 sun.color = "#ffd745";
 
-let zoom = 800;
 // The position of the origin on the canvas. This centers the origin on the canvas.
 let originCX = 256;
 let originCY = 256;
